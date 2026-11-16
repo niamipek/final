@@ -16,3 +16,6 @@ coverage/
 Thumbs.db
 .vscode/
 .idea/
+
+# Rubric (local reference only)
+TIEU_CHI_DANH_GIA.md
