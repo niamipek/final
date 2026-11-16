@@ -7,7 +7,7 @@ Tài liệu này liệt kê toàn bộ endpoint dùng cho báo cáo. Nghiệp v�
 | Hạng mục | Quy ước |
 |---|---|
 | Điểm vào | Mọi request từ FE đều đi qua **API Gateway** (`:3000`), dạng `https://<ngrok-domain>/api/...` |
-| Endpoint nội bộ | Prefix `/internal/...`: chỉ gọi giữa các service trong mạng Docker, Gateway **không** public |
+| Endpoint nội bộ | Prefix `/internal/...`: chỉ gọi giữa các service trong mạng Docker, Gateway **không** public. Bắt buộc header `X-Internal-Key` |
 | Xác thực | Header `Authorization: Bearer <accessToken>`. Gateway verify JWT, rồi chuyển tiếp `x-user-id` và `x-user-role` cho service phía sau |
 | Phân quyền | Mọi đường dẫn `/api/admin/**` yêu cầu `role=ADMIN`, kiểm tra ngay tại Gateway |
 | Định dạng | JSON; thời gian theo ISO-8601 (UTC); tiền là số nguyên VND |
@@ -37,7 +37,7 @@ Tài liệu này liệt kê toàn bộ endpoint dùng cho báo cáo. Nghiệp v�
 | User | Đã đăng nhập, mọi role |
 | Owner | Đã đăng nhập và là chủ của tài nguyên |
 | Admin | Đã đăng nhập với role ADMIN |
-| Lookup | Có `lookupToken` cấp từ UC32 |
+| Lookup | Có `lookupToken` cấp từ UC32, gửi qua header `X-Lookup-Token` |
 | VNPay | Lời gọi từ VNPay, xác thực bằng chữ ký HMAC |
 | Internal | Chỉ gọi giữa các service |
 

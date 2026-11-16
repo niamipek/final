@@ -198,6 +198,7 @@ Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn th
 - Monorepo NestJS (`apps/<service>` + `libs/common`), Prisma/TypeORM + PostgreSQL, Redis, RabbitMQ.
 - Swagger cho từng service; JWT + RBAC tại Gateway.
 - Monitoring: `@willsoto/nestjs-prometheus`, Prometheus, Grafana.
+- Email: Nodemailer + **Gmail SMTP thật** (App Password, khai báo trong `.env`, không commit). Không dùng công cụ giả lập như Mailpit/Mailtrap.
 - Deploy: Docker Compose + ngrok. Test: Jest (có unit test tính tiền hoàn, phí ghế, tiền đổi chuyến) + Postman/Newman.
 - FE: React + Vite theo bản thiết kế Claude Design.
 

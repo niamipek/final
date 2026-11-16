@@ -453,7 +453,7 @@
 **Luồng chính:**
 1. Consume event `booking.confirmed`.
 2. Render template gồm: PNR, các chặng, hành khách, ghế, hành lý theo gói và hành lý mua thêm, tổng tiền, QR.
-3. Gửi đến **contact email** của booking (Nodemailer + Mailtrap/Gmail SMTP).
+3. Gửi đến **contact email** của booking qua **Gmail SMTP thật** (Nodemailer + App Password của Gmail). Không dùng Mailpit/Mailtrap để giả lập; email phải đến được hộp thư thật.
 4. Ghi `notification_logs`.
 
 **Ngoại lệ:**
