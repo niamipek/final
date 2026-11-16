@@ -1,0 +1,18 @@
+# Generated documents (kept locally only)
+docs/word/
+docs/diagrams/
+
+# Node / NestJS
+node_modules/
+dist/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
