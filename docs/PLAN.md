@@ -58,7 +58,7 @@ Use case được nhóm theo **mục tiêu của actor**, mỗi nhóm là một 
 | UC10 | Xem sơ đồ ghế, chọn ghế cho từng hành khách × chặng (phí ghế theo §3.3) | Customer | P1 |
 | UC31 | Mua **dịch vụ bổ trợ**: hành lý ký gửi thêm, suất ăn, ghế trả phí | Customer | P2 |
 | UC17 | Xem lịch sử và chi tiết booking ("Đặt chỗ của tôi") | Customer | P1 |
-| UC18 | Hủy booking và hoàn tiền: hoàn 100% nếu hủy trong 24h đầu sau khi mua, sau đó trừ phí hoàn theo **fare rule** của gói | Customer | P2 |
+| UC18 | Hủy booking và hoàn tiền theo **quy tắc hoàn vé ở §3.3** (ân hạn 24h, sau đó trừ phí theo fare rule của gói) | Customer | P2 |
 | UC33 | **Đổi chuyến bay** (gói cho phép; trả chênh lệch + phí đổi; trước giờ bay ≥ 3h) | Customer | P3 |
 | UC19 | Tự động hủy booking quá hạn thanh toán, nhả chỗ và ghế | Thời gian | P1 |
 
