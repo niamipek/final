@@ -16,7 +16,7 @@
 | **Customer** | Khách đã đăng nhập: đặt vé, thanh toán, quản lý booking, check-in |
 | **Admin** | Quản trị: chuyến bay, gói giá, dịch vụ bổ trợ, booking, báo cáo |
 | **VNPay** | Hệ thống ngoài: thanh toán, gọi IPN |
-| **Scheduler** | Job nền: hủy booking quá hạn, nhắc lịch bay |
+| **Thời gian (Time)** | Mốc thời gian kích hoạt các việc tự động: hủy booking quá hạn thanh toán, nhắc mở check-in. Cài đặt bằng cron job trong service |
 
 ## 2. Danh sách Use Case
 Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn thời gian.
@@ -47,15 +47,15 @@ Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn th
 | ID | Use Case | Actor | Ưu tiên |
 |---|---|---|:-:|
 | UC14 | Tạo booking: chọn chuyến + gói giá cho từng chiều, nhập hành khách (ADT/CHD/INF) và **thông tin liên hệ** | Customer | P1 |
-| UC15 | **Giữ chỗ tạm thời** 15 phút: trừ tồn chỗ của khoang; nếu đã chọn ghế thì giữ cả ghế | System | P1 |
+| UC15 | **Giữ chỗ tạm thời** 15 phút: trừ tồn chỗ của khoang; nếu đã chọn ghế thì giữ cả ghế | Customer («include» từ UC14) | P1 |
 | UC31 | Mua **dịch vụ bổ trợ**: hành lý ký gửi thêm, suất ăn, ghế trả phí | Customer | P2 |
 | UC16 | Áp mã giảm giá (voucher) | Customer | P3 |
 | UC17 | Xem lịch sử và chi tiết booking ("Đặt chỗ của tôi") | Customer | P1 |
 | UC32 | **Tra cứu đặt chỗ bằng PNR + họ** (không cần đăng nhập) | Guest | P2 |
 | UC18 | Hủy booking và hoàn tiền **theo fare rule** (miễn phí trong 24h kể từ lúc mua) | Customer | P2 |
 | UC33 | **Đổi chuyến bay** (gói cho phép; trả chênh lệch + phí đổi; trước giờ bay ≥ 3h) | Customer | P3 |
-| UC19 | Tự động hủy booking quá hạn thanh toán, nhả chỗ và ghế | Scheduler | P1 |
-| UC20 | Xuất **vé điện tử** (PNR, số vé, QR) | System | P1 |
+| UC19 | Tự động hủy booking quá hạn thanh toán, nhả chỗ và ghế | Thời gian | P1 |
+| UC20 | Xuất **vé điện tử** (PNR, số vé, QR) | VNPay («include» từ UC24) | P1 |
 | UC21 | **Check-in online** (mở 24h, đóng 1h trước giờ bay), tự gán ghế nếu chưa chọn, xuất boarding pass | Customer | P2 |
 | UC22 | Quản lý booking toàn hệ thống | Admin | P2 |
 
@@ -69,15 +69,15 @@ Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn th
 |---|---|---|:-:|
 | UC23 | Thanh toán VNPay: tạo URL, redirect | Customer | P1 |
 | UC24 | Nhận IPN/return URL, xác minh chữ ký | VNPay | P1 |
-| UC25 | Hoàn tiền (VNPay refund API sandbox, hoặc ghi nhận hoàn) | System/Admin | P2 |
+| UC25 | Hoàn tiền (VNPay refund API sandbox, hoặc ghi nhận hoàn) | Customer («include» từ UC18) / Admin | P2 |
 | UC26 | Lịch sử giao dịch | Customer/Admin | P2 |
 
 ### Thông báo (Notification)
 | ID | Use Case | Actor | Ưu tiên |
 |---|---|---|:-:|
-| UC27 | Email xác nhận đặt vé kèm e-ticket | System | P1 |
-| UC28 | Thông báo chuyến bay delay/hủy | System | P2 |
-| UC29 | Email nhắc **mở check-in** (24h trước giờ bay) | Scheduler | P3 |
+| UC27 | Email xác nhận đặt vé kèm e-ticket | VNPay («include» từ UC20) | P1 |
+| UC28 | Thông báo chuyến bay delay/hủy | Admin («extend» từ UC12) | P2 |
+| UC29 | Email nhắc **mở check-in** (24h trước giờ bay) | Thời gian | P3 |
 
 ### Báo cáo (Admin)
 | ID | Use Case | Actor | Ưu tiên |
@@ -85,6 +85,8 @@ Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn th
 | UC30 | Dashboard: doanh thu (vé + dịch vụ bổ trợ), số vé bán, tỉ lệ lấp đầy | Admin | P2 |
 
 **Tổng cộng 34 UC: 17 P1, 13 P2, 4 P3.**
+
+> Use case không có người khởi động trực tiếp (giữ chỗ, xuất vé, gửi email, hoàn tiền) ghi actor là **actor của use case gốc** kèm quan hệ «include»/«extend», khớp với sơ đồ use case. Hệ thống không bao giờ là actor của chính nó.
 
 ## 2.1 Quy trình đặt vé phía người dùng
 1. **Tìm chuyến bay**: một chiều/khứ hồi, số khách, khoang.

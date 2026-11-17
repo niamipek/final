@@ -220,7 +220,7 @@
 ## C. Đặt vé
 
 ### UC14 + UC15 – Tạo booking và giữ chỗ tạm thời
-- **Actor:** Customer (System thực hiện việc giữ chỗ)
+- **Actor:** Customer. UC15 (giữ chỗ) không có actor riêng, được UC14 «include»
 - **Service:** booking-service (điều phối) + flight-service (tồn chỗ)
 - **Tiền điều kiện:** Đã đăng nhập; đã chọn chuyến và gói giá cho chiều đi (và chiều về nếu khứ hồi).
 
@@ -340,7 +340,7 @@
 - **API:** `GET /api/bookings/:id/refund-quote`, `POST /api/bookings/:id/cancel`
 
 ### UC19 – Tự động hủy booking quá hạn
-- **Actor:** Scheduler
+- **Actor:** Thời gian (Time): cron job chạy mỗi phút
 - **Service:** booking-service (+ flight-service)
 
 **Luồng chính:**
@@ -355,7 +355,7 @@
 - Đây là điểm cần giải thích khi bảo vệ.
 
 ### UC20 – Xuất vé điện tử
-- **Actor:** System
+- **Actor:** VNPay (gián tiếp: UC24 nhận IPN thành công rồi «include» UC20)
 - **Service:** booking-service
 
 **Luồng chính:**
@@ -447,7 +447,7 @@
 ## E. Thông báo
 
 ### UC27 – Email xác nhận đặt vé
-- **Actor:** System
+- **Actor:** VNPay (gián tiếp: UC20 «include» UC27 sau khi xuất vé)
 - **Service:** notification-service
 
 **Luồng chính:**
