@@ -12,7 +12,7 @@
 | **Cabin (khoang)** | `ECONOMY`, `BUSINESS` |
 | **Fare family (gói giá)** | `ECO_SAVER`, `ECO_STANDARD`, `ECO_FLEX`, `BUSINESS`. Mỗi gói có một **fare rule** quy định hành lý, quyền đổi/hoàn và phí |
 | **Ancillary** | Dịch vụ bổ trợ: hành lý ký gửi thêm, suất ăn, ghế trả phí |
-| **ADT / CHD / INF** | Người lớn (≥ 12 tuổi) / Trẻ em (2–11 tuổi) / Em bé (< 2 tuổi), tính tuổi tại ngày bay |
+| **ADT / CHD / INF** | Người lớn (≥ 12 tuổi) / Trẻ em (2–11 tuổi) / Em bé (7 ngày đến < 2 tuổi). ADT/CHD tính tuổi tại ngày bay chặng đầu; INF tính tại ngày bay từng chặng |
 
 ---
 
@@ -232,11 +232,11 @@
 2. Booking-service validate theo quy tắc nghiệp vụ:
    - 1 ≤ ADT, ADT + CHD ≤ 9, INF ≤ ADT;
    - mỗi INF gắn với một ADT khác nhau;
-   - tuổi khớp với loại khách tại ngày bay của chặng đi;
+   - tuổi khớp với loại khách: ADT/CHD tính tại ngày bay chặng đi; INF phải từ 7 ngày đến dưới 2 tuổi tại ngày bay của **mỗi** chặng (khứ hồi mà bé tròn 2 tuổi ở chiều về thì báo lỗi, yêu cầu đặt vé CHD);
    - khứ hồi: chặng về cùng tuyến ngược chiều và khởi hành sau chặng đi.
 3. Với mỗi chặng, booking-service gọi flight-service `GET /internal/flights/:id/fares/:code` để lấy **snapshot** chuyến bay, giá gói và fare rule.
    - Kiểm tra chuyến ở `SCHEDULED` và còn ≥ 3h trước giờ bay.
-4. Booking-service tính tiền cho mỗi chặng: `Σ(giá gói × hệ số khách) + thuế/phí × số khách`, với hệ số ADT 1.0, CHD 0.75, INF 0.1.
+4. Booking-service tính tiền cho mỗi chặng: `Σ(giá gói × hệ số khách) + thuế/phí × số khách`, với hệ số ADT 1.0, CHD 0.9, INF 0.1 (Vietnam Airlines, chặng nội địa; đọc từ cấu hình).
 5. Booking-service gọi flight-service `POST /internal/inventory/hold` với `{holdRef: bookingId, items: [{flightId, cabin, quantity: ADT+CHD}], ttlMinutes: 15}`.
 6. Flight-service giữ chỗ **nguyên tử cho mọi chặng**:
    - Mở transaction, khóa dòng `cabin_inventory` bằng `SELECT ... FOR UPDATE`.

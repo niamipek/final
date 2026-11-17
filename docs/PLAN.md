@@ -148,8 +148,10 @@ Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn th
 **Trạng thái booking:** `PENDING_PAYMENT → CONFIRMED → CHECKED_IN → COMPLETED`, nhánh phụ `CANCELLED / EXPIRED / REFUNDED`.
 
 ### 3.3 Quy tắc nghiệp vụ
-- **Hành khách:** tối đa 9 (ADT + CHD), ít nhất 1 ADT, INF ≤ ADT. Tuổi tính tại ngày bay: ADT ≥ 12, CHD 2–11, INF < 2. INF không có ghế, không check-in riêng.
-- **Giá vé** = `giá gói × hệ số khách` + thuế/phí mỗi khách (ADT 1.0, CHD 0.75, INF 0.1) + dịch vụ bổ trợ + phí ghế − voucher. Booking lưu **snapshot** giá và fare rule tại thời điểm đặt.
+- **Hành khách:** tối đa 9 (ADT + CHD), ít nhất 1 ADT, INF ≤ ADT. ADT ≥ 12, CHD 2–11, INF từ 7 ngày đến dưới 2 tuổi. Tuổi ADT/CHD tính tại ngày bay **chặng đầu tiên**; tuổi INF tính tại ngày bay **từng chặng** (theo Vietnam Airlines). INF không có ghế, không check-in riêng.
+- **Giá vé** = `giá gói × hệ số khách` + thuế/phí mỗi khách + dịch vụ bổ trợ + phí ghế − voucher. Booking lưu **snapshot** giá và fare rule tại thời điểm đặt.
+  - Hệ số khách: **ADT 1.0, CHD 0.9, INF 0.1**, theo quy định chặng nội địa của Vietnam Airlines (chặng quốc tế CHD là 0.75). Hệ số lưu trong cấu hình, không gắn cứng trong code.
+  - Hệ số chỉ áp cho **giá vé gốc**; thuế/phí tính riêng theo từng loại khách.
 - **Gói giá mẫu** (seed):
 
   | Gói | Xách tay | Ký gửi | Đổi chuyến | Hoàn vé | Chọn ghế |
@@ -227,15 +229,16 @@ Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn th
 - Prometheus targets đều `UP`; Grafana có số liệu; IPN VNPay qua ngrok gọi về thành công.
 
 ## Thuật ngữ loại hành khách
-| Mã | Viết tắt của | Nghĩa | Tuổi (tính vào ngày bay) | Ghế riêng? |
+| Mã | Viết tắt của | Nghĩa | Tuổi | Ghế riêng? | Hệ số giá vé (nội địa) |
 |---|---|---|---|---|
-| **ADT** | Adult | Người lớn | từ 12 tuổi trở lên | Có |
-| **CHD** | Child | Trẻ em | 2–11 tuổi | Có |
-| **INF** | Infant | Em bé | dưới 2 tuổi | **Không**, ngồi trong lòng người lớn |
+| **ADT** | Adult | Người lớn | từ 12 tuổi trở lên | Có | 100% |
+| **CHD** | Child | Trẻ em | 2–11 tuổi | Có | 90% |
+| **INF** | Infant | Em bé | 7 ngày đến dưới 2 tuổi | **Không**, ngồi trong lòng người lớn | 10% |
 
 ## Nguồn tham khảo
 - Vietnam Airlines – Mua vé trên website: https://www.vietnamairlines.com/vn/vi/buy-tickets-other-products/how-to-buy-tickets-and-make-payment/how-to-purchase-tickets/purchase-on-website
 - Vietnam Airlines – Hoàn/đổi vé tự nguyện: https://www.vietnamairlines.com/vn/vi/buy-tickets-other-products/booking-and-manage-bookings/voluntary-refund-rebook
 - Vietjet – Hạng vé: https://www.vietjetair.com/vi/diem-den/kinh-nghiem/hang-ve-vietjet-va-mo-hinh-hang-khong-hybrid-so-sanh-chi-tiet
 - Vietjet – Vé Eco: https://www.vietjetair.com/vi/diem-den/kinh-nghiem/ve-vietjet-eco-la-gi-nhung-dieu-can-biet-khi-mua-ve-eco
+- Vietnam Airlines – Dịch vụ cho trẻ em (hệ số giá CHD/INF, cách tính tuổi): https://www.vietnamairlines.com/vn/vi/travel-information/special-services/infants-children
 - Traveloka – Hủy vé, hoàn tiền: https://quantrimang.com/cong-nghe/cach-hoan-tien-ve-may-bay-traveloka-203024
