@@ -21,7 +21,9 @@
 ## 2. Danh sách Use Case
 Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn thời gian.
 
-### Xác thực & tài khoản (Auth)
+Use case được nhóm theo **mục tiêu của actor**, mỗi nhóm là một use case tổng quát và được phân rã ở trang cùng số trong sơ đồ use case (`docs/diagrams/use-case.drawio`). Cách nhóm này không phụ thuộc việc chia service; ánh xạ sang service nằm ở §3.
+
+### 1. Quản lý tài khoản
 | ID | Use Case | Actor | Ưu tiên |
 |---|---|---|:-:|
 | UC01 | Đăng ký tài khoản | Guest | P1 |
@@ -29,59 +31,67 @@ Mức ưu tiên: **P1** bắt buộc, **P2** nên có, **P3** làm nếu còn th
 | UC03 | Đăng xuất / làm mới token | Customer | P1 |
 | UC04 | Xem/cập nhật hồ sơ (lưu sẵn hành khách hay đi cùng) | Customer | P2 |
 | UC05 | Quên mật khẩu (OTP qua email) | Guest | P3 |
-| UC06 | Quản lý người dùng (khóa/mở, gán role) | Admin | P2 |
 
-### Chuyến bay, giá & tìm kiếm (Flight)
+### 2. Tìm kiếm chuyến bay
 | ID | Use Case | Actor | Ưu tiên |
 |---|---|---|:-:|
 | UC07 | Tìm chuyến bay một chiều/khứ hồi theo điểm đi/đến, ngày, số khách ADT/CHD/INF, khoang; trả về giá thấp nhất mỗi chuyến | Guest/Customer | P1 |
 | UC08 | Lọc/sắp xếp theo giá, giờ cất cánh, hãng, thời gian bay | Guest/Customer | P2 |
 | UC09 | Xem chi tiết chuyến bay và **giá gói** | Guest/Customer | P1 |
-| UC10 | Xem sơ đồ ghế, chọn ghế cho từng hành khách × chặng (phí ghế theo §3.3) | Customer | P1 |
-| UC11 | Quản lý sân bay, hãng bay, máy bay (CRUD, sơ đồ ghế) | Admin | P1 |
-| UC12 | Quản lý chuyến bay (tạo, sửa, đổi trạng thái DELAYED/CANCELLED) | Admin | P1 |
-| UC13 | Cấu hình **gói giá** cho chuyến bay: giá từng gói kèm **fare rule** (hành lý, đổi, hoàn, phí) | Admin | P1 |
-| UC34 | Quản lý danh mục **dịch vụ bổ trợ** (hành lý thêm, suất ăn, loại ghế trả phí) | Admin | P2 |
 
-### Đặt vé (Booking): nghiệp vụ lõi
+### 3. Check-in trực tuyến
 | ID | Use Case | Actor | Ưu tiên |
 |---|---|---|:-:|
-| UC14 | Tạo booking: chọn chuyến + gói giá cho từng chiều, nhập hành khách (ADT/CHD/INF) và **thông tin liên hệ** | Customer | P1 |
-| UC15 | **Giữ chỗ tạm thời** 15 phút: trừ tồn chỗ của khoang; nếu đã chọn ghế thì giữ cả ghế | Customer («include» từ UC14) | P1 |
-| UC31 | Mua **dịch vụ bổ trợ**: hành lý ký gửi thêm, suất ăn, ghế trả phí | Customer | P2 |
-| UC16 | Áp mã giảm giá (voucher) | Customer | P3 |
-| UC17 | Xem lịch sử và chi tiết booking ("Đặt chỗ của tôi") | Customer | P1 |
 | UC32 | **Tra cứu đặt chỗ bằng PNR + họ** (không cần đăng nhập) | Guest | P2 |
-| UC18 | Hủy booking và hoàn tiền **theo fare rule** (miễn phí trong 24h kể từ lúc mua) | Customer | P2 |
-| UC33 | **Đổi chuyến bay** (gói cho phép; trả chênh lệch + phí đổi; trước giờ bay ≥ 3h) | Customer | P3 |
-| UC19 | Tự động hủy booking quá hạn thanh toán, nhả chỗ và ghế | Thời gian | P1 |
-| UC20 | Xuất **vé điện tử** (PNR, số vé, QR) | VNPay («include» từ UC24) | P1 |
 | UC21 | **Check-in online** (mở 24h, đóng 1h trước giờ bay), tự gán ghế nếu chưa chọn, xuất boarding pass | Customer | P2 |
-| UC22 | Quản lý booking toàn hệ thống | Admin | P2 |
 
 > **UC32 khác UC17 thế nào?**
 > - **UC17**: chủ tài khoản đăng nhập, xem **tất cả** booking mình đã đặt.
 > - **UC32**: người đi nhưng không phải người đặt (bố mẹ đặt cho con, công ty đặt cho nhân viên). Chỉ có PNR trong email, nhập **PNR + họ** để xem **đúng 1 booking** và check-in (UC21).
 > - PNR + họ đóng vai trò thay mật khẩu, nên phải có rate limit chống dò mã.
 
-### Thanh toán (Payment)
+### 4. Đặt vé: nghiệp vụ lõi
 | ID | Use Case | Actor | Ưu tiên |
 |---|---|---|:-:|
-| UC23 | Thanh toán VNPay: tạo URL, redirect | Customer | P1 |
-| UC24 | Nhận IPN/return URL, xác minh chữ ký | VNPay | P1 |
-| UC25 | Hoàn tiền (VNPay refund API sandbox, hoặc ghi nhận hoàn) | Customer («include» từ UC18) / Admin | P2 |
-| UC26 | Lịch sử giao dịch | Customer/Admin | P2 |
+| UC14 | Tạo booking: chọn chuyến + gói giá cho từng chiều, nhập hành khách (ADT/CHD/INF) và **thông tin liên hệ** | Customer | P1 |
+| UC15 | **Giữ chỗ tạm thời** 15 phút: trừ tồn chỗ của khoang; nếu đã chọn ghế thì giữ cả ghế | Customer («include» từ UC14) | P1 |
+| UC10 | Xem sơ đồ ghế, chọn ghế cho từng hành khách × chặng (phí ghế theo §3.3) | Customer | P1 |
+| UC31 | Mua **dịch vụ bổ trợ**: hành lý ký gửi thêm, suất ăn, ghế trả phí | Customer | P2 |
+| UC17 | Xem lịch sử và chi tiết booking ("Đặt chỗ của tôi") | Customer | P1 |
+| UC18 | Hủy booking và hoàn tiền **theo fare rule** (miễn phí trong 24h kể từ lúc mua) | Customer | P2 |
+| UC33 | **Đổi chuyến bay** (gói cho phép; trả chênh lệch + phí đổi; trước giờ bay ≥ 3h) | Customer | P3 |
+| UC19 | Tự động hủy booking quá hạn thanh toán, nhả chỗ và ghế | Thời gian | P1 |
 
-### Thông báo (Notification)
+### 5. Gửi thông báo
 | ID | Use Case | Actor | Ưu tiên |
 |---|---|---|:-:|
 | UC27 | Email xác nhận đặt vé kèm e-ticket | VNPay («include» từ UC20) | P1 |
 | UC28 | Thông báo chuyến bay delay/hủy | Admin («extend» từ UC12) | P2 |
 | UC29 | Email nhắc **mở check-in** (24h trước giờ bay) | Thời gian | P3 |
 
-### Báo cáo (Admin)
+### 6. Thanh toán
 | ID | Use Case | Actor | Ưu tiên |
 |---|---|---|:-:|
+| UC23 | Thanh toán VNPay: tạo URL, redirect | Customer | P1 |
+| UC24 | Nhận IPN/return URL, xác minh chữ ký | VNPay | P1 |
+| UC20 | Xuất **vé điện tử** (PNR, số vé, QR) | VNPay («include» từ UC24) | P1 |
+| UC16 | Áp mã giảm giá (voucher) | Customer | P3 |
+| UC25 | Hoàn tiền (VNPay refund API sandbox, hoặc ghi nhận hoàn) | Customer («include» từ UC18) / Admin | P2 |
+| UC26 | Lịch sử giao dịch | Customer/Admin | P2 |
+
+### 7. Quản lý chuyến bay
+| ID | Use Case | Actor | Ưu tiên |
+|---|---|---|:-:|
+| UC11 | Quản lý sân bay, hãng bay, máy bay (CRUD, sơ đồ ghế) | Admin | P1 |
+| UC12 | Quản lý chuyến bay (tạo, sửa, đổi trạng thái DELAYED/CANCELLED) | Admin | P1 |
+| UC13 | Cấu hình **gói giá** cho chuyến bay: giá từng gói kèm **fare rule** (hành lý, đổi, hoàn, phí) | Admin | P1 |
+| UC34 | Quản lý danh mục **dịch vụ bổ trợ** (hành lý thêm, suất ăn, loại ghế trả phí) | Admin | P2 |
+
+### Use case quản trị đơn lẻ (vẽ trực tiếp ở trang tổng quan, không phân rã)
+| ID | Use Case | Actor | Ưu tiên |
+|---|---|---|:-:|
+| UC06 | Quản lý người dùng (khóa/mở, gán role) | Admin | P2 |
+| UC22 | Quản lý booking toàn hệ thống | Admin | P2 |
 | UC30 | Dashboard: doanh thu (vé + dịch vụ bổ trợ), số vé bán, tỉ lệ lấp đầy | Admin | P2 |
 
 **Tổng cộng 34 UC: 17 P1, 13 P2, 4 P3.**

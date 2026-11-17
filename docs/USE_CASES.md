@@ -16,6 +16,22 @@
 
 ---
 
+## Use case tổng quát và phân rã
+Sơ đồ use case nhóm theo **mục tiêu của actor**. Mỗi use case tổng quát được phân rã ở một trang của `docs/diagrams/use-case.drawio`:
+
+| Trang | Use case tổng quát | Actor | Use case chi tiết |
+|:-:|---|---|---|
+| 1 | Quản lý tài khoản | Guest, Customer | UC01–UC05 |
+| 2 | Tìm kiếm chuyến bay | Guest | UC07–UC09 |
+| 3 | Check-in trực tuyến | Guest, Customer | UC21, UC32 |
+| 4 | Đặt vé | Customer, Thời gian | UC10, UC14, UC15, UC17–UC19, UC31, UC33 |
+| 5 | Gửi thông báo | Thời gian (và gián tiếp qua UC12, UC20) | UC27–UC29 |
+| 6 | Thanh toán | Customer, VNPay, Admin | UC16, UC20, UC23–UC26 |
+| 7 | Quản lý chuyến bay | Admin | UC11–UC13, UC34 |
+| 0 | (vẽ trực tiếp, không phân rã) | Admin | UC06, UC22, UC30 |
+
+Đặc tả bên dưới vẫn sắp theo thứ tự mã UC; dòng **Service** của mỗi đặc tả chỉ cho biết service nào cài đặt use case đó.
+
 ## A. Xác thực & tài khoản
 
 ### UC01 – Đăng ký tài khoản
