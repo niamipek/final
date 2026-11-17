@@ -30,9 +30,9 @@ Sơ đồ use case nhóm theo **mục tiêu của actor**. Mỗi use case tổng
 | 7 | Quản lý chuyến bay | Admin | UC11–UC13, UC34 |
 | 0 | (vẽ trực tiếp, không phân rã) | Admin | UC06, UC22, UC30 |
 
-Đặc tả bên dưới vẫn sắp theo thứ tự mã UC; dòng **Service** của mỗi đặc tả chỉ cho biết service nào cài đặt use case đó.
+Đặc tả bên dưới sắp theo đúng 7 nhóm này. Dòng **Service** trong mỗi đặc tả chỉ là thông tin cài đặt (service nào hiện thực use case), không phải cách nhóm use case.
 
-## A. Xác thực & tài khoản
+## 1. Quản lý tài khoản
 
 ### UC01 – Đăng ký tài khoản
 - **Actor:** Guest
@@ -85,7 +85,7 @@ Sơ đồ use case nhóm theo **mục tiêu của actor**. Mỗi use case tổng
 
 ---
 
-## B. Chuyến bay, giá & tìm kiếm
+## 2. Tìm kiếm chuyến bay
 
 ### UC07 – Tìm chuyến bay
 - **Actor:** Guest/Customer
@@ -139,6 +139,93 @@ Sơ đồ use case nhóm theo **mục tiêu của actor**. Mỗi use case tổng
 
 - **API:** `GET /api/flights/:id?adults=2&children=1&infants=0`
 
+---
+
+## 3. Check-in trực tuyến
+
+### UC32 – Tra cứu đặt chỗ bằng PNR + họ (P2)
+- **Actor:** Guest (hành khách không phải người đặt, không có tài khoản)
+- **Service:** booking-service
+
+> **Khác UC17 thế nào?**
+> - UC17 dành cho **chủ tài khoản**: xem **mọi booking** mình đã đặt.
+> - UC32 dành cho **người đi máy bay nhưng không phải người đặt**, ví dụ con được bố mẹ đặt hộ, nhân viên được công ty đặt hộ. Họ chỉ có mã PNR trong email nên tra cứu bằng **PNR + họ**, và chỉ xem được **đúng 1 booking**.
+> - Các hãng thật cũng dùng đúng cách này cho "Quản lý đặt chỗ" và check-in online.
+
+**Luồng chính:**
+1. Guest nhập PNR và họ (không dấu, không phân biệt hoa thường).
+2. Hệ thống tìm booking có PNR đó **và** có ít nhất một hành khách mang họ này.
+3. Hệ thống trả về chi tiết booking ở dạng **che bớt thông tin** (số giấy tờ và SĐT chỉ hiện 3 số cuối), kèm e-ticket.
+4. Hệ thống cấp `lookupToken` (JWT ngắn hạn, 30 phút, chỉ có quyền trên booking này) để thực hiện check-in (UC21).
+
+**Ngoại lệ:**
+- Không khớp PNR hoặc họ → `404 BOOKING_NOT_FOUND`. Không báo trường nào sai để tránh bị dò.
+- Tra cứu quá 10 lần/phút/IP → `429`.
+
+- **API:** `POST /api/bookings/lookup`
+
+### UC21 – Check-in online (P2)
+- **Actor:** Customer, hoặc Guest có `lookupToken` từ UC32
+- **Service:** booking-service (+ flight-service gán ghế)
+- **Tiền điều kiện:** Booking ở `CONFIRMED`; chặng cần check-in khởi hành trong khoảng **24h đến 1h** tới.
+
+**Luồng chính:**
+1. Người dùng chọn chặng và các hành khách cần check-in. INF được check-in cùng người lớn đi kèm.
+2. Với hành khách chưa có ghế:
+   - Booking-service gọi flight-service `POST /internal/seats/auto-assign`.
+   - Ưu tiên xếp ghế STANDARD trống, các khách cùng booking ngồi cạnh nhau nếu có thể.
+3. Hệ thống ghi nhận `checked_in_at` và sinh `boarding_pass_no` cùng QR (cổng, giờ lên máy bay = giờ bay − 40 phút).
+4. Khi mọi hành khách đã check-in mọi chặng sắp bay, booking chuyển sang `CHECKED_IN`. Publish `booking.checked_in`; Notification gửi boarding pass.
+
+**Ngoại lệ:**
+- Ngoài khung giờ → `409 CHECKIN_WINDOW_CLOSED`. FE hiển thị giờ mở check-in.
+- Chuyến bị `CANCELLED` → `409`.
+- Hết ghế để tự gán (gần như không xảy ra vì đã giữ chỗ) → `409` và báo admin.
+
+- **API:** `POST /api/bookings/:id/check-in`, `GET /api/bookings/:id/boarding-pass`
+
+---
+
+## 4. Đặt vé
+
+### UC14 + UC15 – Tạo booking và giữ chỗ tạm thời
+- **Actor:** Customer. UC15 (giữ chỗ) không có actor riêng, được UC14 «include»
+- **Service:** booking-service (điều phối) + flight-service (tồn chỗ)
+- **Tiền điều kiện:** Đã đăng nhập; đã chọn chuyến và gói giá cho chiều đi (và chiều về nếu khứ hồi).
+
+**Luồng chính:**
+1. Customer gửi:
+   - `segments`: danh sách `[{flightId, fareFamilyCode, direction}]`;
+   - `passengers`: mỗi người gồm `type`, `fullName`, `dob`, `gender`, `idNumber`; INF có thêm `accompanyingAdultIndex`;
+   - `contact`: `{email, phone}`.
+2. Booking-service validate theo quy tắc nghiệp vụ:
+   - 1 ≤ ADT, ADT + CHD ≤ 9, INF ≤ ADT;
+   - mỗi INF gắn với một ADT khác nhau;
+   - tuổi khớp với loại khách: ADT/CHD tính tại ngày bay chặng đi; INF phải từ 7 ngày đến dưới 2 tuổi tại ngày bay của **mỗi** chặng (khứ hồi mà bé tròn 2 tuổi ở chiều về thì báo lỗi, yêu cầu đặt vé CHD);
+   - khứ hồi: chặng về cùng tuyến ngược chiều và khởi hành sau chặng đi.
+3. Với mỗi chặng, booking-service gọi flight-service `GET /internal/flights/:id/fares/:code` để lấy **snapshot** chuyến bay, giá gói và fare rule.
+   - Kiểm tra chuyến ở `SCHEDULED` và còn ≥ 3h trước giờ bay.
+4. Booking-service tính tiền cho mỗi chặng: `Σ(giá gói × hệ số khách) + thuế/phí × số khách`, với hệ số ADT 1.0, CHD 0.9, INF 0.1 (Vietnam Airlines, chặng nội địa; đọc từ cấu hình).
+5. Booking-service gọi flight-service `POST /internal/inventory/hold` với `{holdRef: bookingId, items: [{flightId, cabin, quantity: ADT+CHD}], ttlMinutes: 15}`.
+6. Flight-service giữ chỗ **nguyên tử cho mọi chặng**:
+   - Mở transaction, khóa dòng `cabin_inventory` bằng `SELECT ... FOR UPDATE`.
+   - Kiểm tra `total - held - sold ≥ quantity`, rồi tăng `held`.
+   - Lưu bản ghi hold kèm thời hạn.
+   - Chỉ cần một chặng thiếu chỗ là rollback toàn bộ.
+7. Booking-service **sinh PNR**: 6 ký tự ngẫu nhiên, không dùng ký tự dễ nhầm 0/O, 1/I (ví dụ `K7XQ2M`). Cột `pnr` là UNIQUE; nếu trùng thì sinh lại (tối đa 5 lần).
+8. Booking-service lưu `bookings` (`pnr`, `PENDING_PAYMENT`, `expires_at = now + 15'`), `booking_segments` (kèm snapshot), `passengers` và `passenger_segments` (chưa có ghế).
+9. Booking-service publish `booking.created` và trả booking (kèm PNR) về cho FE; FE hiển thị đồng hồ đếm ngược.
+
+**Ngoại lệ:**
+- 2a. Vi phạm quy tắc hành khách → `400 INVALID_PASSENGERS`.
+- 3a. Chuyến không đặt được → `409 FLIGHT_NOT_BOOKABLE`.
+- 3b. Flight-service không phản hồi (timeout 3s, retry 2 lần) → `503 SERVICE_UNAVAILABLE`.
+- 6a. Không đủ chỗ → `409 INSUFFICIENT_SEATS` kèm thông tin chặng thiếu chỗ.
+- 7a. Lưu booking lỗi → gọi `POST /internal/inventory/release` (bù trừ).
+
+- **Hậu điều kiện:** Chỗ được giữ trong 15 phút; booking có PNR và ở trạng thái `PENDING_PAYMENT`. Số vé **chưa** được sinh (chỉ sinh khi thanh toán xong, UC20).
+- **API:** `POST /api/bookings`
+
 ### UC10 – Xem sơ đồ ghế và chọn ghế
 - **Actor:** Customer
 - **Service:** flight-service (dữ liệu ghế) + booking-service (gán ghế cho hành khách)
@@ -173,6 +260,172 @@ Sơ đồ use case nhóm theo **mục tiêu của actor**. Mỗi use case tổng
 - Bỏ qua bước chọn ghế → hợp lệ; ghế sẽ được tự gán khi check-in (UC21).
 
 - **API:** `GET /api/flights/:id/seats`, `PUT /api/bookings/:id/seats`
+
+### UC31 – Mua dịch vụ bổ trợ (P2)
+- **Actor:** Customer
+- **Service:** booking-service (+ flight-service lấy danh mục)
+- **Tiền điều kiện:** Booking ở `PENDING_PAYMENT`.
+
+**Luồng chính:**
+1. FE lấy danh mục dịch vụ: `GET /api/ancillaries?flightId=` trả về các gói hành lý thêm (+10kg, +20kg, +30kg) và suất ăn kèm giá.
+2. Customer chọn dịch vụ cho từng hành khách × chặng.
+3. Booking-service lấy giá từ flight-service, **không tin giá gửi từ FE**.
+4. Booking-service lưu `booking_ancillaries` (thay toàn bộ lựa chọn cũ), rồi tính lại tổng tiền.
+
+**Ngoại lệ:**
+- Mã dịch vụ không tồn tại → `400`.
+- Mua hành lý cho INF → `400` (INF không có hành lý ký gửi riêng).
+- Booking đã thanh toán → `409 BOOKING_NOT_EDITABLE`. Mua thêm sau khi thanh toán nằm ngoài phạm vi.
+
+- **API:** `PUT /api/bookings/:id/ancillaries`
+
+### UC17 – Xem lịch sử và chi tiết booking ("Đặt chỗ của tôi")
+- **Actor:** Customer
+- **Service:** booking-service
+
+**Luồng chính:**
+1. Customer xem danh sách booking: phân trang, lọc theo trạng thái; tách "Sắp bay" và "Đã bay/Đã hủy".
+2. Customer xem chi tiết booking:
+   - các chặng (snapshot);
+   - hành khách, ghế, dịch vụ bổ trợ;
+   - tổng tiền chia theo từng phần;
+   - trạng thái và e-ticket;
+   - các nút hành động hiển thị theo fare rule: Hủy/Hoàn, Đổi chuyến, Check-in.
+
+**Ngoại lệ:** Xem booking của người khác → `404`. Admin xem được tất cả (UC22).
+
+- **API:** `GET /api/bookings/me`, `GET /api/bookings/:id`
+
+### UC18 – Hủy booking và hoàn tiền (P2)
+- **Actor:** Customer
+- **Service:** booking-service + payment-service
+- **Tiền điều kiện:** Booking ở `CONFIRMED`, chưa check-in, và chặng đầu tiên chưa khởi hành.
+
+**Luồng chính:**
+1. Customer bấm "Hủy vé". Hệ thống **hiển thị trước số tiền sẽ được hoàn** (`GET /api/bookings/:id/refund-quote`).
+2. Booking-service tính tiền hoàn cho từng chặng theo **snapshot fare rule**:
+   - Hủy trong **24h kể từ lúc mua** và chuyến còn > 24h mới khởi hành → hoàn **100%** tiền vé.
+   - Ngoài trường hợp trên:
+     - `refundable=false` → hoàn 0;
+     - ngược lại → hoàn `giá vé × (1 − refund_fee_pct)`.
+   - Thuế/phí sân bay luôn được hoàn. Dịch vụ bổ trợ và phí ghế **không hoàn**.
+3. Customer xác nhận hủy. Booking chuyển sang `CANCELLED`, ghi nhận số tiền hoàn và publish `booking.cancelled` với `{refundAmount}`.
+4. Xử lý event `booking.cancelled`:
+   - Flight trả chỗ và ghế về trạng thái trống (giảm `sold`).
+   - Payment tạo `refunds` (gọi VNPay refund sandbox, hoặc ghi nhận `PROCESSED`), rồi publish `payment.refunded`.
+5. Booking chuyển sang `REFUNDED`; Notification gửi email xác nhận hoàn tiền.
+
+**Ngoại lệ:**
+- Đã check-in hoặc đã bay → `409 BOOKING_NOT_CANCELLABLE`.
+- Số tiền hoàn bằng 0 → vẫn cho hủy (nhả chỗ), sau khi FE đã cảnh báo rõ.
+- Hoàn tiền VNPay lỗi → refund ở trạng thái `FAILED` để admin xử lý lại thủ công (UC25).
+
+- **API:** `GET /api/bookings/:id/refund-quote`, `POST /api/bookings/:id/cancel`
+
+### UC19 – Tự động hủy booking quá hạn
+- **Actor:** Thời gian (Time): cron job chạy mỗi phút
+- **Service:** booking-service (+ flight-service)
+
+**Luồng chính:**
+1. Cron chạy mỗi phút, tìm các booking `PENDING_PAYMENT` có `expires_at < now`.
+2. Với mỗi booking tìm được: chuyển sang `EXPIRED` và publish `booking.expired`.
+3. Flight-service nhả mọi hold có `holdRef=bookingId`: giảm `held`, ghế `HELD` trở về AVAILABLE.
+4. **Lưới an toàn:** flight-service cũng có job riêng dọn các hold quá hạn, phòng trường hợp mất event.
+
+**Ngoại lệ:** IPN báo thành công **sau khi** booking đã `EXPIRED`:
+- Booking **không** được xác nhận lại, vì chỗ đã nhả.
+- Booking publish `booking.payment_late`, Payment hoàn 100%.
+- Đây là điểm cần giải thích khi bảo vệ.
+
+---
+
+## 5. Gửi thông báo
+
+### UC27 – Email xác nhận đặt vé
+- **Actor:** VNPay (gián tiếp: UC20 «include» UC27 sau khi xuất vé)
+- **Service:** notification-service
+
+**Luồng chính:**
+1. Consume event `booking.confirmed`.
+2. Render template gồm: PNR, các chặng, hành khách, ghế, hành lý theo gói và hành lý mua thêm, tổng tiền, QR.
+3. Gửi đến **contact email** của booking qua **Gmail SMTP thật** (Nodemailer + App Password của Gmail). Không dùng Mailpit/Mailtrap để giả lập; email phải đến được hộp thư thật.
+4. Ghi `notification_logs`.
+
+**Ngoại lệ:**
+- Gửi lỗi → retry 3 lần (requeue có delay), vẫn lỗi thì đưa vào DLQ và ghi `FAILED`.
+- Event trùng (cùng `bookingId` và loại email) → bỏ qua (idempotent).
+
+---
+
+## 6. Thanh toán
+
+### UC23 – Thanh toán qua VNPay
+- **Actor:** Customer
+- **Service:** payment-service (+ booking-service)
+- **Tiền điều kiện:** Booking ở `PENDING_PAYMENT` và chưa hết hạn.
+
+**Luồng chính:**
+1. FE gọi `POST /api/payments/vnpay` với `{bookingId}`.
+2. Payment-service gọi booking-service `GET /internal/bookings/:id` để kiểm tra:
+   - đúng chủ booking;
+   - đúng trạng thái và chưa hết hạn;
+   - lấy `total_amount` (vé + ghế + dịch vụ). **Không tin số tiền gửi từ FE.**
+3. Payment-service tạo `payments` với `status=PENDING`, `purpose=BOOKING` và `vnp_txn_ref` duy nhất.
+4. Payment-service ký HMAC-SHA512 và tạo URL thanh toán.
+   - `vnp_ExpireDate` = `expires_at` của booking.
+   - `vnp_Amount` = số tiền × 100.
+5. FE redirect người dùng sang VNPay sandbox để thanh toán (thẻ test NCB).
+
+**Ngoại lệ:**
+- Booking hết hạn hoặc đã thanh toán → `409 BOOKING_NOT_PAYABLE`.
+- Đã có payment `PENDING` cùng số tiền → trả lại URL cũ (idempotent).
+- Tổng tiền đã đổi do chọn thêm ghế/dịch vụ → hủy payment cũ, tạo payment mới.
+
+- **API:** `POST /api/payments/vnpay`
+
+### UC24 – Nhận kết quả thanh toán từ VNPay
+- **Actor:** VNPay
+- **Service:** payment-service
+
+**Luồng chính (IPN, server-to-server qua URL public của ngrok):**
+1. VNPay gọi `GET /api/payments/vnpay/ipn?...&vnp_SecureHash=...`.
+2. Payment-service verify chữ ký, tìm payment theo `vnp_TxnRef` và kiểm tra số tiền khớp.
+3. Nếu payment đang `PENDING`:
+   - cập nhật `SUCCESS` (khi `vnp_ResponseCode=00`) hoặc `FAILED`;
+   - lưu `vnp_TransactionNo` và `paid_at`.
+4. Publish `payment.succeeded` hoặc `payment.failed`.
+5. Trả `{RspCode: "00", Message: "Confirm Success"}`.
+6. Booking-service xử lý `payment.succeeded`: chuyển `CONFIRMED`, rồi thực hiện UC20.
+
+**Return URL:** VNPay redirect người dùng về FE `/payment/result`. FE gọi `GET /api/payments/vnpay/return`, nhưng **chỉ để hiển thị**. Trạng thái chính thức luôn lấy từ IPN.
+
+**Ngoại lệ (mã trả về theo chuẩn VNPay):**
+
+| Tình huống | Mã trả về |
+|---|---|
+| Sai chữ ký | `97` |
+| Không tìm thấy giao dịch | `01` |
+| Sai số tiền | `04` |
+| Giao dịch đã xử lý trước đó (**idempotent**, không publish lại) | `02` |
+
+### UC20 – Xuất vé điện tử
+- **Actor:** VNPay (gián tiếp: UC24 nhận IPN thành công rồi «include» UC20)
+- **Service:** booking-service
+
+**Luồng chính:**
+1. Khi booking chuyển sang `CONFIRMED`, hệ thống sinh (PNR đã có từ lúc tạo booking, UC14):
+   - mỗi hành khách × chặng một `ticket_no` 13 chữ số dạng `738-XXXXXXXXXX` (3 số mã hãng + 10 số lấy từ DB sequence, nên không bao giờ trùng);
+   - QR code chứa PNR và ticket_no.
+2. Publish `booking.confirmed`. Payload gồm PNR, chặng, hành khách, ghế, dịch vụ và contact email.
+   - Flight chuyển chỗ/ghế sang `SOLD`.
+   - Notification gửi email (UC27).
+3. Customer xem e-ticket trên web (P3: tải file PDF).
+
+- **API:** `GET /api/bookings/:id/ticket`
+
+---
+
+## 7. Quản lý chuyến bay
 
 ### UC11 – Quản lý sân bay, hãng bay, máy bay
 - **Actor:** Admin
@@ -230,251 +483,6 @@ Sơ đồ use case nhóm theo **mục tiêu của actor**. Mỗi use case tổng
 - Đổi giá hoặc rule không ảnh hưởng booking đã tạo, vì booking lưu **snapshot** giá và rule.
 
 - **API:** `/api/admin/fare-families`, `PUT /api/admin/flights/:id/fares`
-
----
-
-## C. Đặt vé
-
-### UC14 + UC15 – Tạo booking và giữ chỗ tạm thời
-- **Actor:** Customer. UC15 (giữ chỗ) không có actor riêng, được UC14 «include»
-- **Service:** booking-service (điều phối) + flight-service (tồn chỗ)
-- **Tiền điều kiện:** Đã đăng nhập; đã chọn chuyến và gói giá cho chiều đi (và chiều về nếu khứ hồi).
-
-**Luồng chính:**
-1. Customer gửi:
-   - `segments`: danh sách `[{flightId, fareFamilyCode, direction}]`;
-   - `passengers`: mỗi người gồm `type`, `fullName`, `dob`, `gender`, `idNumber`; INF có thêm `accompanyingAdultIndex`;
-   - `contact`: `{email, phone}`.
-2. Booking-service validate theo quy tắc nghiệp vụ:
-   - 1 ≤ ADT, ADT + CHD ≤ 9, INF ≤ ADT;
-   - mỗi INF gắn với một ADT khác nhau;
-   - tuổi khớp với loại khách: ADT/CHD tính tại ngày bay chặng đi; INF phải từ 7 ngày đến dưới 2 tuổi tại ngày bay của **mỗi** chặng (khứ hồi mà bé tròn 2 tuổi ở chiều về thì báo lỗi, yêu cầu đặt vé CHD);
-   - khứ hồi: chặng về cùng tuyến ngược chiều và khởi hành sau chặng đi.
-3. Với mỗi chặng, booking-service gọi flight-service `GET /internal/flights/:id/fares/:code` để lấy **snapshot** chuyến bay, giá gói và fare rule.
-   - Kiểm tra chuyến ở `SCHEDULED` và còn ≥ 3h trước giờ bay.
-4. Booking-service tính tiền cho mỗi chặng: `Σ(giá gói × hệ số khách) + thuế/phí × số khách`, với hệ số ADT 1.0, CHD 0.9, INF 0.1 (Vietnam Airlines, chặng nội địa; đọc từ cấu hình).
-5. Booking-service gọi flight-service `POST /internal/inventory/hold` với `{holdRef: bookingId, items: [{flightId, cabin, quantity: ADT+CHD}], ttlMinutes: 15}`.
-6. Flight-service giữ chỗ **nguyên tử cho mọi chặng**:
-   - Mở transaction, khóa dòng `cabin_inventory` bằng `SELECT ... FOR UPDATE`.
-   - Kiểm tra `total - held - sold ≥ quantity`, rồi tăng `held`.
-   - Lưu bản ghi hold kèm thời hạn.
-   - Chỉ cần một chặng thiếu chỗ là rollback toàn bộ.
-7. Booking-service **sinh PNR**: 6 ký tự ngẫu nhiên, không dùng ký tự dễ nhầm 0/O, 1/I (ví dụ `K7XQ2M`). Cột `pnr` là UNIQUE; nếu trùng thì sinh lại (tối đa 5 lần).
-8. Booking-service lưu `bookings` (`pnr`, `PENDING_PAYMENT`, `expires_at = now + 15'`), `booking_segments` (kèm snapshot), `passengers` và `passenger_segments` (chưa có ghế).
-9. Booking-service publish `booking.created` và trả booking (kèm PNR) về cho FE; FE hiển thị đồng hồ đếm ngược.
-
-**Ngoại lệ:**
-- 2a. Vi phạm quy tắc hành khách → `400 INVALID_PASSENGERS`.
-- 3a. Chuyến không đặt được → `409 FLIGHT_NOT_BOOKABLE`.
-- 3b. Flight-service không phản hồi (timeout 3s, retry 2 lần) → `503 SERVICE_UNAVAILABLE`.
-- 6a. Không đủ chỗ → `409 INSUFFICIENT_SEATS` kèm thông tin chặng thiếu chỗ.
-- 7a. Lưu booking lỗi → gọi `POST /internal/inventory/release` (bù trừ).
-
-- **Hậu điều kiện:** Chỗ được giữ trong 15 phút; booking có PNR và ở trạng thái `PENDING_PAYMENT`. Số vé **chưa** được sinh (chỉ sinh khi thanh toán xong, UC20).
-- **API:** `POST /api/bookings`
-
-### UC31 – Mua dịch vụ bổ trợ (P2)
-- **Actor:** Customer
-- **Service:** booking-service (+ flight-service lấy danh mục)
-- **Tiền điều kiện:** Booking ở `PENDING_PAYMENT`.
-
-**Luồng chính:**
-1. FE lấy danh mục dịch vụ: `GET /api/ancillaries?flightId=` trả về các gói hành lý thêm (+10kg, +20kg, +30kg) và suất ăn kèm giá.
-2. Customer chọn dịch vụ cho từng hành khách × chặng.
-3. Booking-service lấy giá từ flight-service, **không tin giá gửi từ FE**.
-4. Booking-service lưu `booking_ancillaries` (thay toàn bộ lựa chọn cũ), rồi tính lại tổng tiền.
-
-**Ngoại lệ:**
-- Mã dịch vụ không tồn tại → `400`.
-- Mua hành lý cho INF → `400` (INF không có hành lý ký gửi riêng).
-- Booking đã thanh toán → `409 BOOKING_NOT_EDITABLE`. Mua thêm sau khi thanh toán nằm ngoài phạm vi.
-
-- **API:** `PUT /api/bookings/:id/ancillaries`
-
-### UC17 – Xem lịch sử và chi tiết booking ("Đặt chỗ của tôi")
-- **Actor:** Customer
-- **Service:** booking-service
-
-**Luồng chính:**
-1. Customer xem danh sách booking: phân trang, lọc theo trạng thái; tách "Sắp bay" và "Đã bay/Đã hủy".
-2. Customer xem chi tiết booking:
-   - các chặng (snapshot);
-   - hành khách, ghế, dịch vụ bổ trợ;
-   - tổng tiền chia theo từng phần;
-   - trạng thái và e-ticket;
-   - các nút hành động hiển thị theo fare rule: Hủy/Hoàn, Đổi chuyến, Check-in.
-
-**Ngoại lệ:** Xem booking của người khác → `404`. Admin xem được tất cả (UC22).
-
-- **API:** `GET /api/bookings/me`, `GET /api/bookings/:id`
-
-### UC32 – Tra cứu đặt chỗ bằng PNR + họ (P2)
-- **Actor:** Guest (hành khách không phải người đặt, không có tài khoản)
-- **Service:** booking-service
-
-> **Khác UC17 thế nào?**
-> - UC17 dành cho **chủ tài khoản**: xem **mọi booking** mình đã đặt.
-> - UC32 dành cho **người đi máy bay nhưng không phải người đặt**, ví dụ con được bố mẹ đặt hộ, nhân viên được công ty đặt hộ. Họ chỉ có mã PNR trong email nên tra cứu bằng **PNR + họ**, và chỉ xem được **đúng 1 booking**.
-> - Các hãng thật cũng dùng đúng cách này cho "Quản lý đặt chỗ" và check-in online.
-
-**Luồng chính:**
-1. Guest nhập PNR và họ (không dấu, không phân biệt hoa thường).
-2. Hệ thống tìm booking có PNR đó **và** có ít nhất một hành khách mang họ này.
-3. Hệ thống trả về chi tiết booking ở dạng **che bớt thông tin** (số giấy tờ và SĐT chỉ hiện 3 số cuối), kèm e-ticket.
-4. Hệ thống cấp `lookupToken` (JWT ngắn hạn, 30 phút, chỉ có quyền trên booking này) để thực hiện check-in (UC21).
-
-**Ngoại lệ:**
-- Không khớp PNR hoặc họ → `404 BOOKING_NOT_FOUND`. Không báo trường nào sai để tránh bị dò.
-- Tra cứu quá 10 lần/phút/IP → `429`.
-
-- **API:** `POST /api/bookings/lookup`
-
-### UC18 – Hủy booking và hoàn tiền (P2)
-- **Actor:** Customer
-- **Service:** booking-service + payment-service
-- **Tiền điều kiện:** Booking ở `CONFIRMED`, chưa check-in, và chặng đầu tiên chưa khởi hành.
-
-**Luồng chính:**
-1. Customer bấm "Hủy vé". Hệ thống **hiển thị trước số tiền sẽ được hoàn** (`GET /api/bookings/:id/refund-quote`).
-2. Booking-service tính tiền hoàn cho từng chặng theo **snapshot fare rule**:
-   - Hủy trong **24h kể từ lúc mua** và chuyến còn > 24h mới khởi hành → hoàn **100%** tiền vé.
-   - Ngoài trường hợp trên:
-     - `refundable=false` → hoàn 0;
-     - ngược lại → hoàn `giá vé × (1 − refund_fee_pct)`.
-   - Thuế/phí sân bay luôn được hoàn. Dịch vụ bổ trợ và phí ghế **không hoàn**.
-3. Customer xác nhận hủy. Booking chuyển sang `CANCELLED`, ghi nhận số tiền hoàn và publish `booking.cancelled` với `{refundAmount}`.
-4. Xử lý event `booking.cancelled`:
-   - Flight trả chỗ và ghế về trạng thái trống (giảm `sold`).
-   - Payment tạo `refunds` (gọi VNPay refund sandbox, hoặc ghi nhận `PROCESSED`), rồi publish `payment.refunded`.
-5. Booking chuyển sang `REFUNDED`; Notification gửi email xác nhận hoàn tiền.
-
-**Ngoại lệ:**
-- Đã check-in hoặc đã bay → `409 BOOKING_NOT_CANCELLABLE`.
-- Số tiền hoàn bằng 0 → vẫn cho hủy (nhả chỗ), sau khi FE đã cảnh báo rõ.
-- Hoàn tiền VNPay lỗi → refund ở trạng thái `FAILED` để admin xử lý lại thủ công (UC25).
-
-- **API:** `GET /api/bookings/:id/refund-quote`, `POST /api/bookings/:id/cancel`
-
-### UC19 – Tự động hủy booking quá hạn
-- **Actor:** Thời gian (Time): cron job chạy mỗi phút
-- **Service:** booking-service (+ flight-service)
-
-**Luồng chính:**
-1. Cron chạy mỗi phút, tìm các booking `PENDING_PAYMENT` có `expires_at < now`.
-2. Với mỗi booking tìm được: chuyển sang `EXPIRED` và publish `booking.expired`.
-3. Flight-service nhả mọi hold có `holdRef=bookingId`: giảm `held`, ghế `HELD` trở về AVAILABLE.
-4. **Lưới an toàn:** flight-service cũng có job riêng dọn các hold quá hạn, phòng trường hợp mất event.
-
-**Ngoại lệ:** IPN báo thành công **sau khi** booking đã `EXPIRED`:
-- Booking **không** được xác nhận lại, vì chỗ đã nhả.
-- Booking publish `booking.payment_late`, Payment hoàn 100%.
-- Đây là điểm cần giải thích khi bảo vệ.
-
-### UC20 – Xuất vé điện tử
-- **Actor:** VNPay (gián tiếp: UC24 nhận IPN thành công rồi «include» UC20)
-- **Service:** booking-service
-
-**Luồng chính:**
-1. Khi booking chuyển sang `CONFIRMED`, hệ thống sinh (PNR đã có từ lúc tạo booking, UC14):
-   - mỗi hành khách × chặng một `ticket_no` 13 chữ số dạng `738-XXXXXXXXXX` (3 số mã hãng + 10 số lấy từ DB sequence, nên không bao giờ trùng);
-   - QR code chứa PNR và ticket_no.
-2. Publish `booking.confirmed`. Payload gồm PNR, chặng, hành khách, ghế, dịch vụ và contact email.
-   - Flight chuyển chỗ/ghế sang `SOLD`.
-   - Notification gửi email (UC27).
-3. Customer xem e-ticket trên web (P3: tải file PDF).
-
-- **API:** `GET /api/bookings/:id/ticket`
-
-### UC21 – Check-in online (P2)
-- **Actor:** Customer, hoặc Guest có `lookupToken` từ UC32
-- **Service:** booking-service (+ flight-service gán ghế)
-- **Tiền điều kiện:** Booking ở `CONFIRMED`; chặng cần check-in khởi hành trong khoảng **24h đến 1h** tới.
-
-**Luồng chính:**
-1. Người dùng chọn chặng và các hành khách cần check-in. INF được check-in cùng người lớn đi kèm.
-2. Với hành khách chưa có ghế:
-   - Booking-service gọi flight-service `POST /internal/seats/auto-assign`.
-   - Ưu tiên xếp ghế STANDARD trống, các khách cùng booking ngồi cạnh nhau nếu có thể.
-3. Hệ thống ghi nhận `checked_in_at` và sinh `boarding_pass_no` cùng QR (cổng, giờ lên máy bay = giờ bay − 40 phút).
-4. Khi mọi hành khách đã check-in mọi chặng sắp bay, booking chuyển sang `CHECKED_IN`. Publish `booking.checked_in`; Notification gửi boarding pass.
-
-**Ngoại lệ:**
-- Ngoài khung giờ → `409 CHECKIN_WINDOW_CLOSED`. FE hiển thị giờ mở check-in.
-- Chuyến bị `CANCELLED` → `409`.
-- Hết ghế để tự gán (gần như không xảy ra vì đã giữ chỗ) → `409` và báo admin.
-
-- **API:** `POST /api/bookings/:id/check-in`, `GET /api/bookings/:id/boarding-pass`
-
----
-
-## D. Thanh toán
-
-### UC23 – Thanh toán qua VNPay
-- **Actor:** Customer
-- **Service:** payment-service (+ booking-service)
-- **Tiền điều kiện:** Booking ở `PENDING_PAYMENT` và chưa hết hạn.
-
-**Luồng chính:**
-1. FE gọi `POST /api/payments/vnpay` với `{bookingId}`.
-2. Payment-service gọi booking-service `GET /internal/bookings/:id` để kiểm tra:
-   - đúng chủ booking;
-   - đúng trạng thái và chưa hết hạn;
-   - lấy `total_amount` (vé + ghế + dịch vụ). **Không tin số tiền gửi từ FE.**
-3. Payment-service tạo `payments` với `status=PENDING`, `purpose=BOOKING` và `vnp_txn_ref` duy nhất.
-4. Payment-service ký HMAC-SHA512 và tạo URL thanh toán.
-   - `vnp_ExpireDate` = `expires_at` của booking.
-   - `vnp_Amount` = số tiền × 100.
-5. FE redirect người dùng sang VNPay sandbox để thanh toán (thẻ test NCB).
-
-**Ngoại lệ:**
-- Booking hết hạn hoặc đã thanh toán → `409 BOOKING_NOT_PAYABLE`.
-- Đã có payment `PENDING` cùng số tiền → trả lại URL cũ (idempotent).
-- Tổng tiền đã đổi do chọn thêm ghế/dịch vụ → hủy payment cũ, tạo payment mới.
-
-- **API:** `POST /api/payments/vnpay`
-
-### UC24 – Nhận kết quả thanh toán từ VNPay
-- **Actor:** VNPay
-- **Service:** payment-service
-
-**Luồng chính (IPN, server-to-server qua URL public của ngrok):**
-1. VNPay gọi `GET /api/payments/vnpay/ipn?...&vnp_SecureHash=...`.
-2. Payment-service verify chữ ký, tìm payment theo `vnp_TxnRef` và kiểm tra số tiền khớp.
-3. Nếu payment đang `PENDING`:
-   - cập nhật `SUCCESS` (khi `vnp_ResponseCode=00`) hoặc `FAILED`;
-   - lưu `vnp_TransactionNo` và `paid_at`.
-4. Publish `payment.succeeded` hoặc `payment.failed`.
-5. Trả `{RspCode: "00", Message: "Confirm Success"}`.
-6. Booking-service xử lý `payment.succeeded`: chuyển `CONFIRMED`, rồi thực hiện UC20.
-
-**Return URL:** VNPay redirect người dùng về FE `/payment/result`. FE gọi `GET /api/payments/vnpay/return`, nhưng **chỉ để hiển thị**. Trạng thái chính thức luôn lấy từ IPN.
-
-**Ngoại lệ (mã trả về theo chuẩn VNPay):**
-
-| Tình huống | Mã trả về |
-|---|---|
-| Sai chữ ký | `97` |
-| Không tìm thấy giao dịch | `01` |
-| Sai số tiền | `04` |
-| Giao dịch đã xử lý trước đó (**idempotent**, không publish lại) | `02` |
-
----
-
-## E. Thông báo
-
-### UC27 – Email xác nhận đặt vé
-- **Actor:** VNPay (gián tiếp: UC20 «include» UC27 sau khi xuất vé)
-- **Service:** notification-service
-
-**Luồng chính:**
-1. Consume event `booking.confirmed`.
-2. Render template gồm: PNR, các chặng, hành khách, ghế, hành lý theo gói và hành lý mua thêm, tổng tiền, QR.
-3. Gửi đến **contact email** của booking qua **Gmail SMTP thật** (Nodemailer + App Password của Gmail). Không dùng Mailpit/Mailtrap để giả lập; email phải đến được hộp thư thật.
-4. Ghi `notification_logs`.
-
-**Ngoại lệ:**
-- Gửi lỗi → retry 3 lần (requeue có delay), vẫn lỗi thì đưa vào DLQ và ghi `FAILED`.
-- Event trùng (cùng `bookingId` và loại email) → bỏ qua (idempotent).
 
 ---
 
