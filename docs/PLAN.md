@@ -3,8 +3,9 @@
 ## Bối cảnh
 - Thời gian: **1 tháng**. Nhóm: **2–3 người**. Chấm theo [TIEU_CHI_DANH_GIA.md](../TIEU_CHI_DANH_GIA.md), thang 10 điểm.
 - Công nghệ: NestJS (backend), React (FE, thiết kế trước bằng Claude Design), VNPay sandbox (thanh toán).
+- **Phạm vi khai thác:** chỉ chặng bay **nội địa Việt Nam**, tiền tệ **VND**. Hành khách khai giấy tờ nội địa (CCCD), không cần hộ chiếu/visa.
 - Nghiệp vụ mô phỏng theo cách vận hành thực tế của Vietnam Airlines, Vietjet và Traveloka (xem mục *Nguồn tham khảo*).
-- **Ngoài phạm vi:** hành trình nhiều chặng (multi-city), chuyến nối chuyến, hội viên/tích dặm, bảo hiểm, giữ chỗ trả sau.
+- **Ngoài phạm vi:** chặng bay quốc tế (hộ chiếu, visa, ngoại tệ, hệ số CHD 75%), hành trình nhiều chặng (multi-city), chuyến nối chuyến, hội viên/tích dặm, bảo hiểm, giữ chỗ trả sau. Thiết kế vẫn mở rộng được: hệ số giá nằm trong cấu hình, sân bay quản lý bằng CRUD.
 
 ---
 
