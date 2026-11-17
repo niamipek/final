@@ -58,7 +58,7 @@ Use case được nhóm theo **mục tiêu của actor**, mỗi nhóm là một 
 | UC10 | Xem sơ đồ ghế, chọn ghế cho từng hành khách × chặng (phí ghế theo §3.3) | Customer | P1 |
 | UC31 | Mua **dịch vụ bổ trợ**: hành lý ký gửi thêm, suất ăn, ghế trả phí | Customer | P2 |
 | UC17 | Xem lịch sử và chi tiết booking ("Đặt chỗ của tôi") | Customer | P1 |
-| UC18 | Hủy booking và hoàn tiền **theo fare rule** (miễn phí trong 24h kể từ lúc mua) | Customer | P2 |
+| UC18 | Hủy booking và hoàn tiền: hoàn 100% nếu hủy trong 24h đầu sau khi mua, sau đó trừ phí hoàn theo **fare rule** của gói | Customer | P2 |
 | UC33 | **Đổi chuyến bay** (gói cho phép; trả chênh lệch + phí đổi; trước giờ bay ≥ 3h) | Customer | P3 |
 | UC19 | Tự động hủy booking quá hạn thanh toán, nhả chỗ và ghế | Thời gian | P1 |
 
@@ -183,7 +183,11 @@ Use case được nhóm theo **mục tiêu của actor**, mỗi nhóm là một 
   - **PNR** do booking-service tự sinh khi tạo booking: 6 ký tự từ bảng chữ/số bỏ ký tự dễ nhầm (`0 O 1 I`), ví dụ `K7XQ2M`. Cột `pnr` UNIQUE; trùng thì sinh lại.
   - **Số vé** (`ticket_no`) sinh khi `CONFIRMED`, mỗi hành khách × chặng một số: 13 chữ số = mã hãng 3 số + số thứ tự từ DB sequence.
 - **Đặt vé:** chỉ chuyến `SCHEDULED` và còn ≥ **3h** trước giờ bay (cấu hình qua env).
-- **Hoàn vé:** hoàn **100%** nếu hủy trong 24h kể từ lúc mua **và** chuyến còn trên 24h mới bay; ngoài ra hoàn theo `refund_fee` của gói; gói không hoàn thì 0đ. Phí dịch vụ bổ trợ không hoàn, trừ khi hãng hủy chuyến.
+- **Hoàn vé** (xét lần lượt, gặp bước nào thỏa thì dừng):
+  1. **Thời gian ân hạn:** hủy trong 24h kể từ lúc mua **và** chuyến còn trên 24h mới bay → hoàn **100%** tiền vé, bỏ qua fare rule.
+  2. **Gói không cho hoàn** (`refundable = false`, vd ECO_SAVER) → hoàn 0đ.
+  3. **Còn lại** → hoàn `giá vé × (1 − refund_fee_pct)` theo fare rule của gói (vd ECO_STANDARD phí 30% → hoàn 70%).
+  - Phí dịch vụ bổ trợ không hoàn, trừ khi hãng hủy chuyến.
 - **Hãng hủy chuyến:** hoàn 100% toàn bộ và gửi email.
 - **Đổi chuyến:** cùng tuyến, giá mới ≥ giá cũ, trước giờ bay ≥ 3h; trả chênh lệch + phí đổi (phí không hoàn).
 - **Sau khi xuất vé:** không sửa họ tên hành khách.
