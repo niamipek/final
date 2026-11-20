@@ -19,3 +19,7 @@ Thumbs.db
 
 # Rubric (local reference only)
 TIEU_CHI_DANH_GIA.md
+
+# ML final: downloaded datasets, Python cache
+ml-final/data/
+__pycache__/
