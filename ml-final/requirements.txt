@@ -1,0 +1,25 @@
+# Python >= 3.12 (numpy 2.5 và xgboost 3.4 yêu cầu)
+# Cài đặt: pip install -r requirements.txt
+
+# Xử lý dữ liệu
+numpy==2.5.4
+pandas==3.1.1
+
+# Machine learning truyền thống (Câu 2: Ridge, Random Forest, chia dữ liệu)
+scikit-learn==1.9.1
+xgboost==3.4.1
+
+# Deep learning (MLP, LSTM, CNN)
+torch==2.15.0
+
+# Tune hyperparameter trên tập validation (Câu 2)
+optuna==5.0.0
+
+# Phân tích chuỗi thời gian: ACF/PACF (EDA Câu 2)
+statsmodels==0.15.0
+
+# Vẽ hình
+matplotlib==3.11.2
+
+# Notebook EDA
+jupyter==1.1.1
